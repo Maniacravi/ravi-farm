@@ -1,43 +1,51 @@
 import streamlit as st
-import pandas as pd
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
 
-st.title("Ravi Farm - Lime Prices and Weather Data")
-st.write(" Welcome to Ravi Farm's data dashboard! Here you can explore lime prices and weather data.")
+st.set_page_config(
+    page_title="Farm Insights",
+    page_icon="🌱",
+    layout="wide",
+)
 
-def fetch_lime_prices(district = 'virudhunagar', market = 'rajapalayam-uzhavar-sandhai'):
-    url = 'https://www.agriplus.in/price/lime/tamil-nadu/{}/{}'.format(district, market)
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    prices = []
-    table = soup.find('table')
-    if table:
-        rows = table.find_all('tr')
-        for row in rows[1:]:
-            cols = row.find_all('td')
-            if len(cols) >= 2:
-                date = cols[0].text.strip()
-                # convert date to standard format if needed from '6 Nov' to '2025-11-06' where 2025 is current year
-                date = datetime.strptime(date + ' ' + str(datetime.now().year), '%d %b %Y').date()
-                variety = cols[1].text.strip()
-                min_price = cols[2].text.strip()
-                max_price = cols[3].text.strip()
-                modal_price = cols[4].text.strip()
-                prices.append({'date': date, 'market': market, 'variety': variety, 'min_price': min_price, 'max_price': max_price, 'modal_price': modal_price})
-    return prices
+st.title("Farm Insights")
+st.subheader("A clean starting point for your data-driven Streamlit site.")
 
-markets = ['rajapalayam-uzhavar-sandhai', 'thalavaipuram-uzhavar-sandhai', 'aruppukottai-uzhavar-sandhai']
-all_prices = []
-# Go through markets and get prices
-for market in markets:
-    price = fetch_lime_prices(market=market)
-    all_prices.extend(price)
-df_prices = pd.DataFrame(all_prices)
+st.markdown(
+    """
+Welcome to your reset project. This starter layout keeps your **assets** and **data**
+folders intact while giving you a lightweight, maintainable Streamlit foundation.
 
-st.subheader("Lime Prices in Virudhunagar District")
-st.dataframe(df_prices)
-st.line_chart(df_prices.set_index('date')[['modal_price']])
-st.write("Data sourced from Agriplus.in")
-st.write("Developed by Manikandan Ravi - ravi.farm")
+Use this Home page as your landing space to highlight key metrics, showcase visuals,
+or provide links to the most important parts of your project.
+    """
+)
+
+st.divider()
+
+st.markdown("### Quick highlights")
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Pages", "2", "Home & Info")
+col2.metric("Assets folder", "Ready", help="Drop images or branding here.")
+col3.metric("Data folder", "Ready", help="Add CSVs or other data sources.")
+
+st.markdown("### Getting started")
+
+st.markdown(
+    """
+- Add your datasets to `data/` and access them with `pandas`, `pyarrow`, or your
+  preferred library.
+- Place logos, icons, or other static files in `assets/` and reference them by
+  relative path.
+- Duplicate this page or create new modules in the `pages/` directory to expand
+  the app.
+- Use Streamlit components like columns, tabs, charts, and forms to build out your UI.
+    """
+)
+
+st.info(
+    "Tip: Rename page files to control display order (e.g., `1_Home.py`, `2_Info.py`)."
+)
+
+st.success(
+    "You're all set! Customize this page with charts, summaries, or calls-to-action."
+)
