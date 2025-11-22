@@ -1,28 +1,43 @@
 import streamlit as st
 import pandas as pd
-from utils.data_fetchers import fetch_live_price, fetch_history, fetch_weather
-from utils.forecast_utils import forecast_next, monthly_forecast
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
 
-st.set_page_config(page_title="Ravi Farm Dashboard", page_icon="🌿", layout="wide")
+st.title("Ravi Farm - Lime Prices and Weather Data")
+st.write(" Welcome to Ravi Farm's data dashboard! Here you can explore lime prices and weather data.")
 
-st.title("🌿 Ravi Farm Dashboard")
-st.markdown("Live **lime prices**, **forecasts**, and **weather** – Rajapalayam, Tamil Nadu")
+def fetch_lime_prices(district = 'virudhunagar', market = 'rajapalayam-uzhavar-sandhai'):
+    url = 'https://www.agriplus.in/price/lime/tamil-nadu/{}/{}'.format(district, market)
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    prices = []
+    table = soup.find('table')
+    if table:
+        rows = table.find_all('tr')
+        for row in rows[1:]:
+            cols = row.find_all('td')
+            if len(cols) >= 2:
+                date = cols[0].text.strip()
+                # convert date to standard format if needed from '6 Nov' to '2025-11-06' where 2025 is current year
+                date = datetime.strptime(date + ' ' + str(datetime.now().year), '%d %b %Y').date()
+                variety = cols[1].text.strip()
+                min_price = cols[2].text.strip()
+                max_price = cols[3].text.strip()
+                modal_price = cols[4].text.strip()
+                prices.append({'date': date, 'market': market, 'variety': variety, 'min_price': min_price, 'max_price': max_price, 'modal_price': modal_price})
+    return prices
 
-live = fetch_live_price()
-history = fetch_history(days=180)
-weather = fetch_weather()
+markets = ['rajapalayam-uzhavar-sandhai', 'thalavaipuram-uzhavar-sandhai', 'aruppukottai-uzhavar-sandhai']
+all_prices = []
+# Go through markets and get prices
+for market in markets:
+    price = fetch_lime_prices(market=market)
+    all_prices.extend(price)
+df_prices = pd.DataFrame(all_prices)
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Live Lime Price", f"₹{live['price']:,}/Qtl", help=live['market'])
-col2.metric("7-Day Forecast", "₹" + f"{forecast_next(history['modal'], 7)[-1]:,.0f}")
-col3.metric("12-Month Outlook", "₹" + f"{monthly_forecast(history['modal'])[-1]:,.0f}")
-col4.metric("Temp / Rain", f"{weather['temp']}°C / {weather['rain']} mm")
-
-st.subheader("📈 Daily Lime Prices (₹/Qtl)")
-st.line_chart(history.set_index("date")["modal"])
-
-st.subheader("🌦️ 7-Day Rainfall Trend (mm)")
-rain_df = pd.DataFrame(weather["rainfall"])
-st.area_chart(rain_df.set_index("date")["rain"])
-
-st.caption("Data: AGMARKNET, OpenWeatherMap, IMD datasets. Forecasts are for planning only.")
+st.subheader("Lime Prices in Virudhunagar District")
+st.dataframe(df_prices)
+st.line_chart(df_prices.set_index('date')[['modal_price']])
+st.write("Data sourced from Agriplus.in")
+st.write("Developed by Manikandan Ravi - ravi.farm")
