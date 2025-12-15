@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rajapalayam Lime Prices</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #4ade80;
+            /* Lime green */
+            --primary-dark: #22c55e;
+            --bg-color: #111827;
+            /* Dark gray/black */
+            --card-bg: #1f2937;
+            /* Darker gray */
+            --text-main: #f9fafb;
+            /* Off-white */
+            --text-muted: #9ca3af;
+            /* Lighter gray */
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+            --border-color: rgba(74, 222, 128, 0.2);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            margin: 2rem auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.025em;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .price-card {
+            background: var(--card-bg);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            text-align: center;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            background: linear-gradient(to bottom right, #1f2937, #111827);
+        }
+
+        .price-label {
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .current-price {
+            font-size: 4rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .price-unit {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .price-date {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #d1fae5;
+            background: rgba(74, 222, 128, 0.2);
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            position: relative;
+            height: 400px;
+            width: 100%;
+            border: 1px solid var(--border-color);
+        }
+
+        .loading {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .error-msg {
+            color: #ef4444;
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .current-price {
+                font-size: 3rem;
+            }
+
+            .chart-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Rajapalayam Market</h1>
+            <p>Historical Lime Prices & Trends</p>
+        </div>
+
+        <div id="loading" class="loading">Loading data...</div>
+        <div id="error" class="error-msg" style="display: none;"></div>
+
+        <div id="content" style="display: none;">
+            <div class="price-card">
+                <div class="price-label">Current Market Price</div>
+                <div class="current-price">
+                    <span id="price-value">--</span>
+                </div>
+                <div class="price-unit">Rs. / Quintal</div>
+                <div class="price-date" id="price-date">--</div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DATA_URL = 'data/lime_prices_vdx_organized.csv';
+        const TARGET_MARKET = 'Rajapalayam(Uzhavar Sandhai )';
+
+        async function fetchData() {
+            try {
+                const response = await fetch(DATA_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const csvText = await response.text();
+
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function (results) {
+                        processData(results.data);
+                    },
+                    error: function (err) {
+                        showError("Failed to parse CSV data.");
+                        console.error(err);
+                    }
+                });
+
+            } catch (error) {
+                showError(`Failed to load data. Ensure you are running this on a local server (e.g., python -m http.server). Error: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        function processData(data) {
+            // Filter for Rajapalayam market
+            const marketData = data.filter(row => row['Market Name'] && row['Market Name'].trim() === TARGET_MARKET);
+
+            if (marketData.length === 0) {
+                showError(`No data found for market: ${TARGET_MARKET}`);
+                return;
+            }
+
+            // Sort by date
+            marketData.sort((a, b) => new Date(a['Price Date']) - new Date(b['Price Date']));
+
+            // Extract data for chart
+            const dates = marketData.map(row => row['Price Date']);
+            const prices = marketData.map(row => parseFloat(row['Modal Price (Rs./Quintal)']));
+
+            // Get current (latest) price
+            const latestPrice = prices[prices.length - 1];
+            const latestDate = dates[dates.length - 1];
+
+            // Update UI
+            document.getElementById('price-value').textContent = latestPrice.toLocaleString('en-IN');
+            document.getElementById('price-date').textContent = `As of ${new Date(latestDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+
+            // Render Chart
+            renderChart(dates, prices);
+
+            // Show content
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+        }
+
+        function renderChart(labels, data) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(74, 222, 128, 0.5)'); // Primary color with opacity
+            gradient.addColorStop(1, 'rgba(74, 222, 128, 0.0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Modal Price (Rs./Quintal)',
+                        data: data,
+                        borderColor: '#4ade80', // Primary light
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        pointBackgroundColor: '#1f2937', // Dark bg
+                        pointBorderColor: '#4ade80',
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        fill: true,
+                        tension: 0.4 // Smooth curves
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(31, 41, 55, 0.9)', // Dark tooltip
+                            titleColor: '#f9fafb',
+                            bodyColor: '#f9fafb',
+                            borderColor: '#374151',
+                            borderWidth: 1,
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                label: function (context) {
+                                    return `Rs. ${context.parsed.y}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#9ca3af', // Muted text
+                                maxTicksLimit: 8,
+                                maxRotation: 0
+                            }
+                        },
+                        y: {
+                            beginAtZero: false, // Let the scale adapt to the price range
+                            grid: {
+                                color: '#374151' // Dark grid lines
+                            },
+                            ticks: {
+                                color: '#9ca3af', // Muted text
+                                callback: function (value) {
+                                    return 'Rs. ' + value;
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // Start
+        fetchData();
+    </script>
+</body>
+
+</html>
